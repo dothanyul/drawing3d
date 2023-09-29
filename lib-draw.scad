@@ -177,15 +177,68 @@ returns a rotation matrix M ϵ R3xR3 which rotates R3 continuously to align v0 t
 to rotate v0 to v1, apply the rotation matrix of 90 degrees about k3 in the basis Bv = [v0/|v0|, v1/|v1|, v0xv1/|v0||v1|]
 convert R3 to B, apply R=[[0, -1, 0], [1, 0, 0], [0, 0, 1]], convert B to R3
 v = v.x*i3 + v.y*j3 + v.z*k3 = v⋅B1*B1 + v⋅B2*B2 + v⋅B3*B3 so Bfrom = [B1, B2, B3] so Bto = inv(Bfrom)
-something's not right here TODO figure out what
+    
+let v ϵ R3 and define u as v in basis B = [a, b, c].
+then v.x = v.a * a.x + v.b * b.x + v.c * c.x
+so the matrix A such that v = Au will be defined by
+[a.x b.x c.x]
+[a.y b.y c.y]
+[a.z b.z c.z]
+therefore the operation "convert to B, rotate 90 degrees about k3, convert to the standard basis" is defined by
+[a.x b.x c.x]
+[a.y b.y c.y]       convert to standard basis
+[a.z b.z c.z]
+
+[0 -1 0]
+[1 0 0]             rotate 90 degrees
+[0 0 1]
+
+[a.x b.x c.x] ^-1
+[a.y b.y c.y]       convert to B
+[a.z b.z c.z]
 */
 function align(v1, v0) = 
-    cross(v0, v1) == [0, 0, 0] ? mat_i(3) : 
+    // degenerate cases - parallel or anti-parallel
+    cross(v0, v1) == [0, 0, 0] ? 
+        // parallel
+        norm(v0 + v1) >= norm(v0 - v1) ? mat_i(3) :
+        // z=0 - rotate about k3
+        v0.z == 0 ? [[-1, 0, 0], [0, -1, 0], [0, 0, 1]] :
+        // rotate 180 degrees about a vector perpendicular to v0 with z=0
+        let(v0n = v0 / norm(v0), v1n = v1 / norm(v1), v2n = [-v0.y, v0.x, 0] / norm([v0.x, v0.y]))
+        let(to = [[v0n.x, v1n.x, v2n.x], [v0n.y, v1n.y, v2n.y], [v0n.z, v1n.z, v2n.z]])
+        mat_prod([to, [[-1, 0, 0], [0, -1, 0], [0, 0, 1]], mat_inv(to)]) :
+    // not collinear
     let(v0n = v0 / norm(v0), v1n = v1 / norm(v1), v2n = cross(v0, v1) / (norm(v0) * norm(v1)))
-    mat_prod([
-        [v0n, v1n, v2n],
-        [[0, -1, 0], [1, 0, 0], [0, 0, 1]],
-        mat_inv([v0n, v1n, v2n])]);
+    let(to = [[v0n.x, v1n.x, v2n.x], [v0n.y, v1n.y, v2n.y], [v0n.z, v1n.z, v2n.z]])
+    mat_prod([to, [[0, -1, 0], [1, 0, 0], [0, 0, 1]], mat_inv(to)]);
+
+module align_test() {
+    a = 9; b = 0;
+    for(s = [for(i=[0:1:5], j=[0:1:5]) i * 10 + j * 0.8]) {
+        t = $t * 360 - s;
+        r = s == 0 ? 1.5 : 1 - s / 100;
+        v1 = rot_i(10, rot_j(20, [cos(t), sin(t), 0])) * 10;
+        v2 = v1 + rot_k(t, [-cos(t * a + b), 0, sin(t * a + b)]) * 4;
+        v3 = mat_apply(align(v1, v2), v2);
+
+        n = 20;
+        color("#FF0000") translate(v1) sphere(r, $fn=n);
+        color("#00FF00") translate(v2) sphere(r, $fn=n);
+        color("#FFFF00") translate(v3) sphere(r, $fn=n);
+        color("#FFAA00") translate(v3 / norm(v3) * 10) cube(r * 1.6 , center=true);
+    }
+    
+    for(x=allsum([i3, -i3, j3, -j3, k3, -k3] * 10)) {
+        echo(x);
+        hull() {
+            sphere(1);
+            translate(align(x, x)(x)) sphere(1);
+        }
+    }
+}
+
+align_test();
 
 /**
 apply to x ϵ R3 a rotation in R3 that makes any vector in the xy plane normal to v ϵ R3
@@ -267,16 +320,16 @@ module sweep(p, f, nt = $preview ? 15 : 360, ns =  $preview ? 10 : 100, parallel
         ]
     ];
 
-    for(i=[0:1:ns]) {
-        translate(f(i/ns)) origin(5, function (v) mat_apply(rots[i], v));
-    }
+//    for(i=[0:1:ns]) {
+//        translate(f(i/ns)) origin(5, function (v) mat_apply(rots[i], v));
+//    }
         
-//    polyhedron(points, faces, 1);
+    polyhedron(points, faces, 1);
 }
 
 function drop(t) =
     let(r = 10)
-    t < 0 ? f(t+1) :
+    t < 0 ? drop(t+1) :
     t < 0.25 ? [cos(360 * 2 * t) + 1, 0, -sin(360 * 2 * t)] * r :
     t < 0.5 ? [cos(360 * (2 * t - 0.5)) - 1, 0, -sin(360 * 2 * t)] * r :
     t <= 1.5 ? [2 * cos(360 * t), 0, 2 * sin(360 * t)] * r :

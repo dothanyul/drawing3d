@@ -65,8 +65,12 @@ function dot(a, b, strict = false) =
 // cross product of two vectors in R3
 function cross(a, b) = [a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * a.y - a.y * a.x];
 
-// rotate in xy plane
-function vec_rot(a,t) = [a.x * cos(t) - a.y * sin(t), a.y * cos(t) + a.x * sin(t), each(cdr(cdr(a)))];
+// rotate a in xy plane by t
+function rot_k(t, a) = [a.x * cos(t) - a.y * sin(t), a.y * cos(t) + a.x * sin(t), a.z];
+// rotate a in xz plane by t
+function rot_j(t, a) = [a.x * cos(t) - a.z * sin(t), a.y, a.x * sin(t) + a.z * cos(t)];
+// rotate a in yz plane by t
+function rot_i(t, a) = [a.x, a.y * cos(t) - a.z * sin(t), a.y * sin(t) + a.z * cos(t)];
 
 // distance between two vectors in Rd
 function distance(a,b) = sqrt(distsq(a, b));
