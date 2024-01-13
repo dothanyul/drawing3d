@@ -2,21 +2,6 @@ include <lib-math.scad>
 
 // functions related to drawing things
 
-// rainbow of period p at point n
-// at point x1 channel is c1, at point x1+1 channel is c2, so equation for channel is c = 255 * cv * (x - x1) + c1
-function rainbow(n,p) = 
-    let(x = mod(n, p) * 6 / p)
-    x < 1 ? str("#", "FF", byte(255 * (0.5 * x)), byte(255 * (-0.1 * x + 0.1))) :
-    x < 2 ? str("#", "FF", byte(255 * (0.5 * (x - 1) + 0.5)), "00") :
-    x < 3 ? str("#", byte(255 * (-1 * (x - 2) + 1)), byte(255 * (-0.3 * (x - 2) + 1)), byte(255 * (0.1 * (x - 2)))) :
-    x < 4 ? str("#", byte(255 * (0.2 * (x - 3))), byte(255 * (-0.5 * (x - 3) + 0.7)), byte(255 * (0.9 * (x - 3) + 0.1))) :
-    x < 5 ? str("#", byte(255 * (0.3 * (x - 4) + 0.2)), byte(255 * (-0.2 * (x - 4) + 0.2)), byte(255 * (-0.4 * (x - 4) + 1))) :
-    str("#", byte(255 * (0.5 * (x - 5) + 0.5)), "00", byte(255 * (-0.5 * (x - 5) + 0.6)));
-
-function randcolor() =
-    let(rgb = rands(64, 255, 3))
-    str("#", byte(rgb[0]), byte(rgb[1]), byte(rgb[2]));
-
 // polar function for the radius of an n-gon with radius 1
 function poly(n) = function(t) 
     (cos(180 / n) / cos(t % (360 / n) - 180 / n));
@@ -51,6 +36,11 @@ module origin(size=1, f=id) {
         }
     }
 }
+
+/*
+Draw around the edges of a % cube with dimensions [width, depth, height]
+*/
+
 
 /**
 pass two parametric functions p1, p2 : t ϵ [0:360) => [x(t), y(t), z(t)] ϵ R3
@@ -170,103 +160,21 @@ module loft(p1, p2, d1, d2, nt = $preview ? 20 : 360, nz = $preview ? 10 : 0) {
     polyhedron(points, faces, 1);
 }
 
-/**
-align vector v0 to vector v1
-pass two vectors u,v ϵ R3 
-returns a rotation matrix M ϵ R3xR3 which rotates R3 continuously to align v0 to v1
-to rotate v0 to v1, apply the rotation matrix of 90 degrees about k3 in the basis Bv = [v0/|v0|, v1/|v1|, v0xv1/|v0||v1|]
-convert R3 to B, apply R=[[0, -1, 0], [1, 0, 0], [0, 0, 1]], convert B to R3
-v = v.x*i3 + v.y*j3 + v.z*k3 = v⋅B1*B1 + v⋅B2*B2 + v⋅B3*B3 so Bfrom = [B1, B2, B3] so Bto = inv(Bfrom)
-    
-let v ϵ R3 and define u as v in basis B = [a, b, c].
-then v.x = v.a * a.x + v.b * b.x + v.c * c.x
-so the matrix A such that v = Au will be defined by
-[a.x b.x c.x]
-[a.y b.y c.y]
-[a.z b.z c.z]
-therefore the operation "convert to B, rotate 90 degrees about k3, convert to the standard basis" is defined by
-[a.x b.x c.x]
-[a.y b.y c.y]       convert to standard basis
-[a.z b.z c.z]
-
-[0 -1 0]
-[1 0 0]             rotate 90 degrees
-[0 0 1]
-
-[a.x b.x c.x] ^-1
-[a.y b.y c.y]       convert to B
-[a.z b.z c.z]
-*/
-function align(v1, v0) = 
-    // degenerate cases - parallel or anti-parallel
-    cross(v0, v1) == [0, 0, 0] ? 
-        // parallel
-        norm(v0 + v1) >= norm(v0 - v1) ? mat_i(3) :
-        // z=0 - rotate about k3
-        v0.z == 0 ? [[-1, 0, 0], [0, -1, 0], [0, 0, 1]] :
-        // rotate 180 degrees about a vector perpendicular to v0 with z=0
-        let(v0n = v0 / norm(v0), v1n = v1 / norm(v1), v2n = [-v0.y, v0.x, 0] / norm([v0.x, v0.y]))
-        let(to = [[v0n.x, v1n.x, v2n.x], [v0n.y, v1n.y, v2n.y], [v0n.z, v1n.z, v2n.z]])
-        mat_prod([to, [[-1, 0, 0], [0, -1, 0], [0, 0, 1]], mat_inv(to)]) :
-    // not collinear
-    let(v0n = v0 / norm(v0), v1n = v1 / norm(v1), v2n = cross(v0, v1) / (norm(v0) * norm(v1)))
-    let(to = [[v0n.x, v1n.x, v2n.x], [v0n.y, v1n.y, v2n.y], [v0n.z, v1n.z, v2n.z]])
-    mat_prod([to, [[0, -1, 0], [1, 0, 0], [0, 0, 1]], mat_inv(to)]);
-
-module align_test() {
-    a = 9; b = 0;
-    for(s = [for(i=[0:1:5], j=[0:1:5]) i * 10 + j * 0.8]) {
-        t = $t * 360 - s;
-        r = s == 0 ? 1.5 : 1 - s / 100;
-        v1 = rot_i(10, rot_j(20, [cos(t), sin(t), 0])) * 10;
-        v2 = v1 + rot_k(t, [-cos(t * a + b), 0, sin(t * a + b)]) * 4;
-        v3 = mat_apply(align(v1, v2), v2);
-
-        n = 20;
-        color("#FF0000") translate(v1) sphere(r, $fn=n);
-        color("#00FF00") translate(v2) sphere(r, $fn=n);
-        color("#FFFF00") translate(v3) sphere(r, $fn=n);
-        color("#FFAA00") translate(v3 / norm(v3) * 10) cube(r * 1.6 , center=true);
-    }
-    
-    for(x=allsum([i3, -i3, j3, -j3, k3, -k3] * 10)) {
-        echo(x);
-        hull() {
-            sphere(1);
-            translate(align(x, x)(x)) sphere(1);
-        }
-    }
-}
-
-align_test();
-
-/**
-apply to x ϵ R3 a rotation in R3 that makes any vector in the xy plane normal to v ϵ R3
-denote the unit vectors in R3 by i, j, k
-in the xy plane there is one unit vector u perpendicular to v unless v is normal to the xy plane
-u is the unit vector perpendicular to [v.x, v.y, 0]
-rotate each point of the polygon around u by an angle h
-h is defined as the angle between v and the z axis in the plane normal to u
-define w as i * arg([v.x, -v.y]) (the unit vector with the opposite argument of the projection of v into the xy plane)
-then h is the angle between v * w and k in the xz plane (v * w is v rotated (not projected) into the xz plane)
-so to rotate some vector x = [x,y,0] into the plane normal to v, rotate x about u by arg(v.x + v.z * i)
-arg(u) is j * arg([v.x, v.y])
-*/
-
 // create a list of n+1 rotations which rotate [0,0,1] to be parallel to f(t) for t=[0:1/n:1]
 function follow(f, n, acc) = 
     // 0 thru n 
     len(acc) == n+1 ? acc : 
-    acc == [] ? follow(f, n, [align(f(1 / n / 10) - f(0), k3)]) : 
-    // create the next rotation by adding to the previous one the angle difference between the last index and this one
     let(t = len(acc) / n)
-    // gradient of f at last and current index
-    let(v0 = f(t - 1 / n + 1 / n / 10) - f(t - 1 / n), 
-        v1 = f(t + 1 / n / 10) - f(t))
-    // angle difference between last and current index
-    let(delta = align(v0, v1))
+    acc == [] ? follow(f, n, [align(k3, unit(f(1 / n / 10) - f(0)))]) : 
+    // create the next rotation by adding to the previous one the angle difference between the last index and this one
+    // gradient of f at current index
+    let(v1 = unit(f(t + 1 / n / 20) - f(t - 1 / n / 20)))
+    // previous result
+    let(last=mat_apply(acc[len(acc)-1], k3))
     // apply the current difference to the last index to avoid discontinuities
-    follow(f, n, [each acc, mat_mult(delta, acc[len(acc)-1])]);
+    follow(f, n, [each acc, 
+        mat_mult(align(last, v1), acc[len(acc)-1])
+    ]);
 
 /**
 pass
@@ -325,6 +233,20 @@ module sweep(p, f, nt = $preview ? 15 : 360, ns =  $preview ? 10 : 100, parallel
 //    }
         
     polyhedron(points, faces, 1);
+}
+
+module sweep_test() {
+    p = function(t) 
+        t > 1 ? p(t-1) : 
+        t < 0 ? p(t+1) :
+        t > 1/2 ? let(x=p(1-t)) [x.x, -x.y] :
+        t < 1/4 ? [1 - 4 * t, 4 * t] :
+        t < 5/16 ? [0, 1 - (t * 8 - 2)] :
+        t < 7/16 ? [(5/16 - t) * 8, 1/2] :
+        [-1, 1/2 - (t - 7/16) * 8];
+    f = function(s) 
+        [cos(360*s), s, sin(360*s)] * 100;
+    sweep(p, f);
 }
 
 function drop(t) =
