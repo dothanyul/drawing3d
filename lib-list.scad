@@ -1,11 +1,37 @@
 // functions on arbitrary lists
 
-// utilities on arbitrary vectors
-function cdr(vec) = [for(i=[1:1:len(vec)-1]) vec[i]];
-function reverse(vec) = (
+// get all but the first item in a list
+function cdr(vec) = 
+    vec == [] ? [] : 
+    [for(i=[1:1:len(vec)-1]) vec[i]];
+
+// reverse a list
+function reverse(vec) = 
     len(vec) == 0 ? vec :
-    concat(reverse(cdr(vec)), vec[0])
-);
+    [each reverse(cdr(vec)), vec[0]];
+
+// sum the elements of a list
+function sum(vec, acc=0) = 
+    is_list(vec[0]) && acc == 0 ? sum(vec, [for(i = [1:1:len(vec[0])]) 0]) :
+    vec == [] ? acc :
+    sum(cdr(vec), acc + vec[0]);
+
+// mean of a list
+function avg(vec) = sum(vec) / len(vec);
+
+// and of a list of booleans
+function and(vec) = 
+    vec == [] ? true : 
+    !is_bool(vec[0]) ? false :
+    vec[0] ? and(cdr(vec)) : 
+    false;
+
+// or of a list of booleans
+function or(vec) = 
+    vec == [] ? false :
+    !is_bool(vec[0]) ? false :
+    vec[0] ? true :
+    or(cdr(vec));
 
 // remove all of an item from a list by value
 function remove(list, bad) = (
@@ -28,7 +54,7 @@ function select(list, comp, highest) = (
     select(cdr(list), comp, list[0])
 );
 // selection sort a list using a comparator (which should return a number for how the first arg sorts to the second)
-function sort(list, comp, acc) = (
+function sort(list, comp, acc=[]) = (
     list == [] ? acc :
     sort(remove(list, select(list, comp, undef)), comp, [select(list, comp, undef), each acc])
 );
@@ -43,7 +69,7 @@ function contains(L, elts) = (
 );
 
 // join two lists, taking only one copy of any duplicates
-function merge(L1, L2, acc) = 
+function merge(L1, L2, acc=[]) = 
     L1 == [] && L2 == [] ? acc :
     L1 == [] ? [each acc, each L2] :
     L2 == [] ? [each acc, each L1] :

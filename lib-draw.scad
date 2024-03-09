@@ -1,4 +1,6 @@
 include <lib-math.scad>
+include <lib-color.scad>
+include <lib-func.scad>
 
 // functions related to drawing things
 
@@ -6,108 +8,102 @@ include <lib-math.scad>
 function poly(n) = function(t) 
     (cos(180 / n) / cos(t % (360 / n) - 180 / n));
     
-// draw a polygon given a parametric function p
-module face(p, $fn=40) {
-    dt = 360 / $fn;
-    polygon([for(i=[0:1:$fn-1])
-        let(t = dt * i)
-        [p(t) * cos(t), p(t) * sin(t)]
-    ]);
+// draw a polygon given a parametric continuous 1-periodic function p : [0,1] -> R2
+module fill(p, $fn=40) {
+    dt = 1 / $fn;
+    polygon([for(i=[0:1:$fn-1]) p(dt * i)]);
 }
 
 /*
-Parametric function R -> R3 for a line segment from a to b
+Draw positive x,y,z axes of length size transformed by function or matrix f
 */
-function segment(a, b) = function(t)
-    a + (b - a) * t;
-
-/*
-Draw positive x,y,z axes of length size transformed by function f
-*/
-module origin(size=1, f=id) {
-    color("#FF8844") sphere(1);
-    for (x=[i3, j3, k3]) {
-        translate(f(x * size)) sphere(1);
+module origin(size=1, f=id, ball=true) {
+    function f1(x) = is_function(f) ? f(x) * size : 
+        is_matrix(f) ? mat_apply(f, x) * size :
+        x * size;
+    if(ball) {
+        for(x=[i3, j3, k3]) color(color_str(x * 255)) hull() {
+            sphere(size / 5);
+            translate(f1(x)) sphere(size / 10);
+        }
+        % sphere(size, $fn = 20);
+    } else {
+        // sorted by z decasing then y decreasing then x decreasing
+        // so 0 = [1, 1, 1], then going down in z is an increase by 9, y an increase by 3, and x an increase by 1
+        points = [let(d = 0.25) for(k = [k3, vec_0(3), -k3 * d]) for(j = [j3, vec_0(3), -j3 * d]) for(i = [i3, vec_0(3), -i3 * d]) f1(i + j + k)];
+        // faces of tetrahedra along each axis
+        for(p = [[13, 16, 22, 12, i3], [13, 22, 14, 10, j3], [13, 14, 16, 4, k3]]) {
+            faces = [for(f = [[0, 1, 2], [0, 2, 3], [0, 3, 1], [1, 3, 2]]) [for(i = f) p[i]]];
+            color(color_str(p[4])) polyhedron(points, faces, 1);
+        }
     }
-    % hull() {
-        sphere(1);
-        for (x=[i3, j3, k3]) {
-            translate(f(x * size)) sphere(1);
+}
+/*
+Draw square edges of thickness r around a cube with dimensions [width, depth, height]
+*/
+module frame(dimensions, r=1, center=false) {
+    let(i = dimensions[0], j = dimensions[1], k = dimensions[2])
+    difference() {
+        translate([-r, -r, -r] * (center ? 0 : 1)) cube([i + r * 2, j + r * 2, k + r * 2], center=center);
+        for(v = [i3, j3, k3]) {
+            translate(-v * r * 2 * (center ? 0 : 1)) cube([i, j, k] + v * r * 4, center=center);
         }
     }
 }
 
 /*
-Draw around the edges of a % cube with dimensions [width, depth, height]
+Regular pyramid with base radius r, height h, and n sides
 */
+module pyramid(r, h, n) {
+    points = [[0, 0, h], 
+        each [for(t=[0:360/n:359.9])
+            r * [cos(t), sin(t), 0]
+        ]
+    ];
+    faces = [[for(i=[1:1:n]) i], 
+        each [for(i=[1:1:n])
+            i == n ? [0, 1, n] : [0, i+1, i]
+        ]
+    ];
+    polyhedron(points, faces, 1);
+}
 
 
 /**
-pass two parametric functions p1, p2 : t ϵ [0:360) => [x(t), y(t), z(t)] ϵ R3
-returns the slope [dx, dy] : t ϵ [0:360) => [dx(t), dy(t)] ϵ R2
-where dx is the slope of the image vector from [x1(t), z1(t)] to [x2(t), z2(t)]
-and likewise for dy.
+Randomly populate a space with a color function f : [0,1]^3 -> rgb
 */
-function direct(p1,p2) = function(t) [(p2(t).x - p1(t).x) / (p2(t).z - p1(t).z), (p2(t).y - p1(t).y) / (p2(t).z - p1(t).z)];
-
-/**
-Make two cubic splines, one in the x plane and one in the y plane, and project them together
-calculate a cubic function f : [0,1] -> R2 such that
-    f(x1.z) = [x1.x, x1.y]
-    f(x2.z) = [x2.x, x2.y]
-    df/dz(x1.z) = d1 in x and y
-    df/dz(x2.z) = d2 in x and y
-    f lies in the plane (r, z) => [(x2.x - x1.x)r + x1.x, (x2.y - x1.y)r + x1.y, z]
-*/
-function spline(x1, x2, d1, d2) =
-    let(z1 = x1.z, h = x2.z - x1.z)
-    let(a = function(t1,t2,d1,d2)
-            (d1 + d2) / pow(h,2)
-            - 2 * (t2 - t1) / pow(h,3),
-        b = function(t1,t2,d1,d2)
-            -(2 * d1 + d2) / h
-            + 3 * (t2 - t1 - z1 * (d1 + d2)) / pow(h,2)
-            + 6 * z1 * (t2 - t1) / pow(h,3),
-        c = function(t1,t2,d1,d2)
-            d1
-            + 2 * z1 * (2 * d1 + d2) / h
-            + 3 * z1 * (z1 * (d1 + d2) - 2 * (t2 - t1)) / pow(h,2)
-            - 6 * pow(z1,2) * (t2 - t1) / pow(h,3),
-        d = function(t1,t2,d1,d2)
-            t1 - d1 * z1
-            - pow(z1,2) * (2 * d1 + d2) / h
-            + pow(z1,2) * (3 * (t2 - t1) - z1 * (d1 + d2)) / pow(h,2)
-            + 2 * pow(z1,3) * (t2 - t1) / pow(h,3))
-    function (z)
-        let(rx = a(x1.x, x2.x, d1.x, d2.x) * pow(z,3) + b(x1.x, x2.x, d1.x, d2.x) * pow(z,2) + c(x1.x, x2.x, d1.x, d2.x) * z + d(x1.x, x2.x, d1.x, d2.x),
-            ry = a(x1.y, x2.y, d1.y, d2.y) * pow(z,3) + b(x1.y, x2.y, d1.y, d2.y) * pow(z,2) + c(x1.y, x2.y, d1.y, d2.y) * z + d(x1.y, x2.y, d1.y, d2.y))
-        [rx, ry, z];
+module colorspace(f) {
+    for(i=[0:1:1000]) {
+        v = rands(0, 1, 3);
+        translate(v * 30) color(f(v)) sphere(1);
+    }
+}
 
 /**
 pass
-    two parametric functions r1,r2 : tϵ[0,360) -> R2 x [[0,0,h]]] for top and bottom faces
-    two parametric functions d1,d2 : tϵ[0,360) -> R for the slopes at the ends
-    a number $fn of intervals to divide t into
+    two parametric functions p1,p2 : tϵ[0,1] -> R2 x [[0,0,h]] for top and bottom faces
+        must be simple closed curves
+    two parametric functions d1,d2 : tϵ[0,1] -> R for the slopes at the ends
+        in the plane <k3, p2(t) - p1(t)> with k3 horizontal, so 0 = vertical
 this function defines a curved face in R3 between these two curves thus:
     construct a parametric spline s : [t,z] -> r in the plane P = [r cos t, r sin t, z] where
-        angle t ranges from 0 to 360 in degrees
+        angle t ranges from 0 to 1 * 360 degrees
         height z ranges from 0 to h
         radius r is positive
     such that for all t,
         s(t,0) = r1(t)
         s(t,h) = r2(t)
-        ∂s/∂z(t,0) = tan(ends[0])
-        ∂s/∂z(t,h) = -tan(ends[1])
-        if there is an inflection point, the slope there is minimized
-    four control points so for a fixed t, s(z) = (r2(t) - r1(t)) * (3(x/h)^2 - 2(x/h)^3) + r1(t)
-break t into intervals of width i = 360/$fn
-calculate the path length L of the larger of r1 and r2 and break h into equal-length intervals of width roughly L / $fn (j intervals where j = ceil(L / $fn))
+        ∂s/∂z(t,0) = d1(t)
+        ∂s/∂z(t,h) = d2(t)
+    see documentation on spline:lib-func.scad for more info
+break t into intervals of width i = 1/nt
+calculate L = average of path lengths of r1 and r2 and break h into equal-length intervals of width roughly L / nt (number of intervals is rounded up)
 sample the surface of s at this density to create a square grid of points over it
 pass these points and squares (as well as the top and bottom faces) to polyhedron()
 */
-module loft(p1, p2, d1, d2, nt = $preview ? 20 : 360, nz = $preview ? 10 : 0) {
-    // segment t : [0,360)
-    dt = 360 / nt;
+module loft(p1, p2, d1 = zero(2), d2 = zero(2), nt = $preview ? 20 : 360, nz = $preview ? 10 : 0) {
+    // segment t : [0,1]
+    dt = 1 / nt;
 
     // segment h
     h = p2(0).z - p1(0).z;
@@ -160,15 +156,29 @@ module loft(p1, p2, d1, d2, nt = $preview ? 20 : 360, nz = $preview ? 10 : 0) {
     polyhedron(points, faces, 1);
 }
 
+
+/**
+create a round pipe around a path f : [0,1] -> R2 or R3, which may be nondifferentiable and/or noncontinuous, colored with c : [0,1] -> "#rgb"
+
+*/
+module sweep_nondifferentiable(f, r = 1, c = function(t) default, $fn = 10) {
+    for(i = [0:1:$fn-1]) {
+        color(c(i)) hull() {
+            translate(f(i / $fn)) sphere(r, $fn = $preview ? 5 : 15); 
+            translate(f((i + 1) / $fn)) sphere(r, $fn = $preview ? 5 : 15);
+        }
+    }
+}
+
 // create a list of n+1 rotations which rotate [0,0,1] to be parallel to f(t) for t=[0:1/n:1]
-function follow(f, n, acc) = 
+function follow(f, n, acc=[]) = 
     // 0 thru n 
     len(acc) == n+1 ? acc : 
     let(t = len(acc) / n)
-    acc == [] ? follow(f, n, [align(k3, unit(f(1 / n / 10) - f(0)))]) : 
+    acc == [] ? follow(f, n, [align(k3, unit(f(1 / n) - f(0)))]) : 
     // create the next rotation by adding to the previous one the angle difference between the last index and this one
     // gradient of f at current index
-    let(v1 = unit(f(t + 1 / n / 20) - f(t - 1 / n / 20)))
+    let(v1 = unit(f(t + 1 / n) - f(t)))
     // previous result
     let(last=mat_apply(acc[len(acc)-1], k3))
     // apply the current difference to the last index to avoid discontinuities
@@ -178,20 +188,20 @@ function follow(f, n, acc) =
 
 /**
 pass
-    a parametric function p : t ϵ [0,360) -> R2 for the cross section
-    a parametric function f : s ϵ [0,1] -> R3 for the sweep path
+    a parametric continuous 1-periodic function p : t ϵ [0,1] -> R2 for the cross section
+    a parametric C2 function f : s ϵ [0,1] -> R3 for the sweep path
     a number of segments to divide the cross section perimeter into
     a number of segments to divide the path length into
     whether to keep the profile flat the whole way (true) or normal to the sweep path (false)
 draws a solid by sweeping the face given by p along the sweep path f
 */
-module sweep(p, f, nt = $preview ? 15 : 360, ns =  $preview ? 10 : 100, parallel=false) {
+module sweep(p, f, nt = $preview ? 15 : 360, ns = $preview ? 10 : 100, parallel=false) {
     // segment the parameters
     dt = 360 / nt;
     ds = 1 / ns;
     
     // create a list of rotations to apply to the flat profile before translating it
-    rots = parallel ? [for (i=[0:1:ns]) mat_i(3)] : follow(f, ns, []);
+    rots = parallel ? [for (i=[0:1:ns]) mat_i(3)] : follow(f, ns);
     
     // create the square net of points
     // loop over t, then s
@@ -235,29 +245,48 @@ module sweep(p, f, nt = $preview ? 15 : 360, ns =  $preview ? 10 : 100, parallel
     polyhedron(points, faces, 1);
 }
 
-module sweep_test() {
-    p = function(t) 
-        t > 1 ? p(t-1) : 
-        t < 0 ? p(t+1) :
-        t > 1/2 ? let(x=p(1-t)) [x.x, -x.y] :
-        t < 1/4 ? [1 - 4 * t, 4 * t] :
-        t < 5/16 ? [0, 1 - (t * 8 - 2)] :
-        t < 7/16 ? [(5/16 - t) * 8, 1/2] :
-        [-1, 1/2 - (t - 7/16) * 8];
-    f = function(s) 
-        [cos(360*s), s, sin(360*s)] * 100;
-    sweep(p, f);
+// a ruler l millimeters long, labeled in inches and centimeters
+module ruler(l) {
+    in = [for(x = [0:25.4:l]) x];
+    halfin = [for(x = [12.7:25.4:l]) x];
+    quarterin = [for(x = [6.35:12.7:l]) x];
+    eighthin = [for(x = [3.175:6.35:l]) x];
+    sixteenthin = [for(x = [1.5875:3.175:l]) x];
+    thirtysecondin = [for(x = [0.79375:1.5875:l]) x];
+    cm = [for(x = [0:10:l]) x];
+    fivemm = [for(x = [5:10:l]) x];
+    mm = [for(x0 = [0:5:l]) each [for(x1 = [1:1:4]) x1 + x0]];
+    tick = "#542";
+    number = "#555";
+    w = 20;
+    difference() {
+        translate([0, -w/2, -2]) cube([l, w, 2]);
+        for(i = [1:1:len(in)-1]) {
+            translate([in[i] - 1.5 * floor(log(i) + 1), 1.4, -0.5]) color(number) linear_extrude(1) text(str(i), size=4);
+        }
+        for(i = [1:1:len(cm)-1]) {
+            h = i % 10 == 0 ? 4 : 3;
+            d = i % 10 == 0 ? 1.5 : 1.2;
+            y = i % 10 == 0 ? -1.4 : -2.4;
+            translate([cm[i] + d * floor(log(i) + 1), y, -0.5]) color(number) rotate([0, 0, 180]) linear_extrude(1) text(str(i), size=h);
+        }
+        imperial = [[in, 4], [halfin, 5], [quarterin, 4.5], [eighthin, 3.5], [sixteenthin, 2.5], [thirtysecondin, 1.5]];
+        metric = [[cm, 4], [fivemm, 5], [mm, 2.5]];
+        for(L = imperial) {
+            for(i = [0:1:len(L[0])-1]) {
+                translate([L[0][i], w/2 - L[1], 0]) 
+                rotate([-90, 0, 0])
+                color(tick) 
+                pyramid(0.2, L[1], 4);
+            }
+        }
+        for(L = metric) {
+            for(i = [0:1:len(L[0])-1]) {
+                translate([L[0][i], L[1] - w/2, 0])
+                rotate([90, 0, 0])
+                color(tick)
+                pyramid(0.2, L[1], 4);
+            }
+        }
+    }
 }
-
-function drop(t) =
-    let(r = 10)
-    t < 0 ? drop(t+1) :
-    t < 0.25 ? [cos(360 * 2 * t) + 1, 0, -sin(360 * 2 * t)] * r :
-    t < 0.5 ? [cos(360 * (2 * t - 0.5)) - 1, 0, -sin(360 * 2 * t)] * r :
-    t <= 1.5 ? [2 * cos(360 * t), 0, 2 * sin(360 * t)] * r :
-    drop(t-1);
-
-
-
-
-

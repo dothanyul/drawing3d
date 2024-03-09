@@ -1,9 +1,10 @@
+// various math functions
 include <lib-list.scad>
-
-// functions to deal with scalars
 
 // identity function
 id = function(x) x;
+
+// functions to deal with scalars
 
 // mod that deals with negatives correctly
 function mod(a,b) = (a % b + b) % b;
@@ -14,11 +15,8 @@ function gcd(a,b) =
     b==0 ? a : 
     gcd(b, a%b);
 
-// sum a list of numbers or vectors
-function sum(L, acc=0) = 
-    L == [] ? acc :
-    is_list(L[0]) && is_num(acc) ? sum(L, [for(i=L[0]) 0]) :
-    sum(cdr(L), L[0] + acc);
+// truncate float a after p bits
+function truncate(a, p) = floor(a * pow(2, p)) / pow(2, p);
 
 // find the angle of an arc given length and radius
 function angle(arclength, radius) = arclength / (radius * 2 * PI) * 360;
@@ -46,8 +44,8 @@ k3 = [0, 0, 1];
 // zero vector in Rn
 function vec_0(n) = [for(i=[0:1:n-1]) 0];
 
-// average of two vectors
-function vec_avg(a,b) = (a + b) / 2;
+// increase dimension of a vector by adding zeroes
+function raise(v, n) = [for(i=[0:1:n-1]) is_undef(v[i]) ? 0 : v[i]];
 
 // polar angle (argument) of a vector a ϵ R2
 function vec_ang(a) = atan2(a.y, a.x);
@@ -62,15 +60,13 @@ function dot(a, b, strict = false) =
     a == [] || b == [] ? 0 :
     a[0] * b[0] + dot(cdr(a), cdr(b));
 
-// cross product of two vectors a,b ϵ R3
-function cross(a, b) = [a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x];
-
 // rotate a in xy plane by t
-function rot_k(t, a) = [a.x * cos(t) - a.y * sin(t), a.y * cos(t) + a.x * sin(t), a.z];
-// rotate a in xz plane by t
-function rot_j(t, a) = [a.x * cos(t) - a.z * sin(t), a.y, a.x * sin(t) + a.z * cos(t)];
+function rot_k(a, t) = let(b = [a.x * cos(t) - a.y * sin(t), a.y * cos(t) + a.x * sin(t), a.z])
+    is_undef(a.z) ? [b.x, b.y] : b;
+// rotate a in zx plane by t
+function rot_j(a, t) = [a.z * sin(t) + a.x * cos(t), a.y, a.z * cos(t) - a.x * sin(t)];
 // rotate a in yz plane by t
-function rot_i(t, a) = [a.x, a.y * cos(t) - a.z * sin(t), a.y * sin(t) + a.z * cos(t)];
+function rot_i(a, t) = [a.x, a.y * cos(t) - a.z * sin(t), a.y * sin(t) + a.z * cos(t)];
 
 // distance between two vectors a,b ϵ Rd
 function distance(a,b) = sqrt(distsq(a, b));
@@ -83,20 +79,20 @@ function distsq(a, b) =
 
 // distance between polar points a,b ϵ R x [0,360)
 function dist_polar(a, b) = 
-    let(
-        c = [a[0] * cos(a[1]), a[0] * sin(a[1])],
+    let(c = [a[0] * cos(a[1]), a[0] * sin(a[1])],
         d = [b[0] * cos(b[1]), b[0] * sin(b[1])])
     distance(c,d);
 
 // compare the distance between two vectors a,b ϵ Rd
 function dist_comp(a,b) = (is_undef(a) || is_undef(b)) ? 0 : distance(a[0], a[1]) - distance(b[0], b[1]);
 
-// calculate the length of a parametric function f : [0:360] -> R2 with resolution dt
-function length(f, dt) = 
-    sum([for(t=[0:360:dt]) 
-        let(t0 = t, t1 = t + dt)
-        distance(f(t0), f(t1))
-    ]);
+/**
+pass two parametric functions p1, p2 : t ϵ [0:360) => [x(t), y(t), z(t)] ϵ R3
+returns the slope [dx, dy] : t ϵ [0:360) => [dx(t), dy(t)] ϵ R2
+where dx is the slope of the image vector from [x1(t), z1(t)] to [x2(t), z2(t)]
+and likewise for dy.
+*/
+function direct(p1,p2) = function(t) [(p2(t).x - p1(t).x) / (p2(t).z - p1(t).z), (p2(t).y - p1(t).y) / (p2(t).z - p1(t).z)];
 
 /**
 align vector whither to vector thither, preserving relative angles and distances
@@ -143,6 +139,14 @@ function align(vw, vt) =
     // convert to B, rotate by t, convert to SB
     mat_prod([to, [[cost, -sint, 0], [sint, cost, 0], [0, 0, 1]], mat_inv(to)]);
 
+// rotate k parallel to v
+module face(v) {
+    // 0 = north, 180 = south
+    lat = atan2(norm([v.x, v.y]), v.z);
+    long = atan2(v.y, v.x);
+    rotate([0, lat, long]) children();
+}
+
 // comparators for x, y, and z coordinates of vectors a,b ϵ R3
 x_comp = function (a,b)
     is_undef(a) || is_undef(b) ? 0 :
@@ -180,8 +184,13 @@ function allsum(vecs) =
         merge(vecs, rest), 
         merge([for(v=rest) vecs[0] + v], [for(v=cdr(vecs)) vecs[0] + v])
     );
-    
+
 // functions on matrices
+
+function is_matrix(a) = 
+    and([for(el = a) is_list(el) && 
+        and([for(em = el) is_num(em)])]) && 
+    and([for(i = [1:1:len(a)-1]) len(a[i]) == len(a[i-1])]);
 
 // set the value at row i, column j in matrix to val
 function mat_insert(matrix, i,j, val) = [for(a=[0:1:len(matrix)-1]) a==i ? [for(b=[0:1:len(matrix[i])-1]) b==j ? val : matrix[i][b]] : matrix[a]];
@@ -211,7 +220,7 @@ function mat_apply(A, x) =
     let(v = mat_mult(A, [[x.x], [x.y], [x.z]]))
     [v[0][0], v[1][0], v[2][0]];
 
-// determinant of a 3x3 matrix
+// determinant of a 3x3 matrix (formula stolen from Wolfram Alpha)
 function det(A) = 
     let(a = A[0][0], b = A[0][1], c = A[0][2], 
         d = A[1][0], e = A[1][1], f = A[1][2],
@@ -232,25 +241,29 @@ function mat_inv(A) =
 
 // functions on functions
 
+// length of a parametric function f : [0:1] -> R2
+function length(f) = 
+    sum([for(t=[0:1:$fn-1]) 
+        let(t0 = t / $fn, t1 = (t + 1) / $fn)
+        distance(f(t0), f(t1))
+    ]);
+
 // integral of f : R => R from a to b
-function integral(f, a, b) = (
+function integral(f, a, b) = 
     let(t = function(i) a + (i / $fn) * (b - a))
     sum([for(i = [1:1:$fn])
         1 / $fn * (f(t(i)) + f(t(i-1))) / 2
-    ])
-);
+    ]);
 
-// path integral of f : R => Rn from a to b
-function path_integral(f, a, b) = (
-    let(t = function(i) a + (i / $fn) * (b - a))
-    sum([for(i = [1:1:$fn])
-        norm([1 / $fn, each f(t(i)) - f(t(i-1))])
-    ])
-);
-
-
-
-
+// normal function n : R2 -> R3 to a parametric function f : R2 -> R3
+// that is, given a parametric function for a surface in R3, return a function that takes the same parameter [t,s] and returns the unit vector normal to f at f([t,s])
+// partial derivatives are approximated by ∂t = ∂s = d
+function normal(f, d) = function(x)
+    let(dt = f(x + [d/2, 0]) - f(x - [d/2, 0]),
+        ds = f(x + [0, d/2]) - f(x - [d/2, 0])
+    )
+    !(norm(dt) > 0 && norm(ds) > 0) || unit(dt) == unit(ds) ? k3 :
+    unit(cross(dt, ds));
 
 
 
