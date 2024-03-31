@@ -17,7 +17,7 @@ module fill(p, $fn=40) {
 /*
 Draw positive x,y,z axes of length size transformed by function or matrix f
 */
-module origin(size=1, f=id, ball=true) {
+module origin(size=1, f=id, ball=false) {
     function f1(x) = is_function(f) ? f(x) * size : 
         is_matrix(f) ? mat_apply(f, x) * size :
         x * size;
@@ -72,10 +72,10 @@ module pyramid(r, h, n) {
 /**
 Randomly populate a space with a color function f : [0,1]^3 -> rgb
 */
-module colorspace(f) {
-    for(i=[0:1:1000]) {
+module colorspace(f, s) {
+    for(i=[0:1:pow(s, 2)]) {
         v = rands(0, 1, 3);
-        translate(v * 30) color(f(v)) sphere(1);
+        translate(v * s) rotate($vpr) color(f(v)) cylinder(1, 1, 1, center=true);
     }
 }
 
@@ -86,48 +86,38 @@ pass
     two parametric functions d1,d2 : tϵ[0,1] -> R for the slopes at the ends
         in the plane <k3, p2(t) - p1(t)> with k3 horizontal, so 0 = vertical
 this function defines a curved face in R3 between these two curves thus:
-    construct a parametric spline s : [t,z] -> r in the plane P = [r cos t, r sin t, z] where
-        angle t ranges from 0 to 1 * 360 degrees
-        height z ranges from 0 to h
-        radius r is positive
-    such that for all t,
-        s(t,0) = r1(t)
-        s(t,h) = r2(t)
-        ∂s/∂z(t,0) = d1(t)
-        ∂s/∂z(t,h) = d2(t)
-    see documentation on spline:lib-func.scad for more info
+construct a parametric spline s(t) : [0,1] => R3 per spline:lib-func
 break t into intervals of width i = 1/nt
 calculate L = average of path lengths of r1 and r2 and break h into equal-length intervals of width roughly L / nt (number of intervals is rounded up)
 sample the surface of s at this density to create a square grid of points over it
 pass these points and squares (as well as the top and bottom faces) to polyhedron()
 */
-module loft(p1, p2, d1 = zero(2), d2 = zero(2), nt = $preview ? 20 : 360, nz = $preview ? 10 : 0) {
-    // segment t : [0,1]
+module loft(p1, p2, d1 = f_0(2), d2 = f_0(2), nt = $preview ? 20 : 360, nz = $preview ? 10 : 0) {
+    // step length for t and z : [0,1]
     dt = 1 / nt;
-
-    // segment h
+    nz1 = nz == 0 ? 
+        let(l1 = length(p1, $fn=nt), l2 = length(p2, $fn=nt),
+            y = avg_dist(p1, p2, $fn=nt))
+        // average of the step lengths on the two faces
+        let(a = avg(l1 / nt, l2 / nt))
+        // number of steps you take of that length on an average walk from p1 to p2
+        ceil(y / a)
+        : nz;
+    dz = 1 / nz1;
     h = p2(0).z - p1(0).z;
-    nz1 = (nz == 0) ?
-        // calculate the average length of the two perimeters
-        let(l1 = length(p1, dt), l2 = length(p2, dt))
-        let(L = (l1 + l2) / 2)
-        // split h into segments as wide as those on perimeter L
-        ceil(nt * h / L)
-    : nz;
-    dz = h / nz1;
 
     // create the square net of points
-    // loop over angles, then heights
-    points = [for(i = [0:1:nz1])
-        each [for(j = [0:1:nt-1])
-        // define the radius at an angle and height
-        let(z1 = p1(0).z + i * dz, z2 = p1(0).z + (i + 0.5) * dz, t1 = j * dt, t2 = (j + 0.5) * dt)
-        let(s1 = (spline(p1(t1), p2(t1), d1(t1), d2(t1))(z1)),
-            s2 = (spline(p1(t2), p2(t2), d1(t2), d2(t2))(z2)))
-        // transform that into x,y,z
-        each (i == nz1 ? [[s1.x, s1.y, z1]] :
-        [[s1.x, s1.y, z1], [s2.x, s2.y, z2]])
-    ]];
+    // loop over t (longitude) then z (latitude)
+    points = [for(i = [0:1:nz1]) for(j = [0:1:nt-1])
+        // [t1, z1] and [t2, z2] are the cylindrical coordinates of the bottom left corner and center of the square, respectively
+        let(z1 = i * dz, z2 = (i + 0.5) * dz, t1 = j * dt, t2 = (j + 0.5) * dt)
+        // xi and ci are the endpoints and tangent vectors for the spline at ti
+        let(x1 = [p1(t1), p2(t1)], c1 = [for(d = [d1(t1), d2(t1)]) [d.x, d.y, 1]],
+            x2 = [p1(t2), p2(t2)], c2 = [for(d = [d1(t2), d2(t2)]) [d.x, d.y, 1]])
+        // take both splines at each latitude
+        let(s1 = spline(x1, c1)(z1), s2 = spline(x2, c2)(z2))
+        each (i == nz1 ? [s1] : [s1, s2])
+    ];
     
     // create the faces in the net of points
     faces = [
@@ -153,7 +143,8 @@ module loft(p1, p2, d1 = zero(2), d2 = zero(2), nt = $preview ? 20 : 360, nz = $
         ]
     ];
     
-    polyhedron(points, faces, 1);
+    if(false) for(x = points) translate(x) color(randcolor()) sphere(1);
+    else polyhedron(points, faces, 1);
 }
 
 
@@ -197,11 +188,11 @@ draws a solid by sweeping the face given by p along the sweep path f
 */
 module sweep(p, f, nt = $preview ? 15 : 360, ns = $preview ? 10 : 100, parallel=false) {
     // segment the parameters
-    dt = 360 / nt;
+    dt = 1 / nt;
     ds = 1 / ns;
     
     // create a list of rotations to apply to the flat profile before translating it
-    rots = parallel ? [for (i=[0:1:ns]) mat_i(3)] : follow(f, ns);
+    rots = parallel ? [for (i=[0:1:ns]) mat_i(3)] : follow(f, ns * 2);
     
     // create the square net of points
     // loop over t, then s
@@ -209,9 +200,10 @@ module sweep(p, f, nt = $preview ? 15 : 360, ns = $preview ? 10 : 100, parallel=
         // convert indices to parameter values
         let(s1 = i * ds, s2 = (i + 0.5) * ds, t1 = j * dt, t2 = (j + 0.5) * dt)
         let(p1 = p(t1), p2 = p(t2))
-        let(x1 = f(s1) + mat_apply(rots[i], [p1.x, p1.y, 0]),
-            x2 = f(s2) + mat_apply(rots[i], [p2.x, p2.y, 0]))
-        each (i == ns ? [x1] : [x1, x2])
+        let(x1 = f(s1) + mat_apply(rots[i * 2], [p1.x, p1.y, 0]))
+        if(i == ns) x1 else 
+        let(x2 = f(s2) + mat_apply(rots[i * 2 + 1], [p2.x, p2.y, 0]))
+        each [x1, x2]
     ];
     
     // create the faces in the net of points
@@ -238,11 +230,17 @@ module sweep(p, f, nt = $preview ? 15 : 360, ns = $preview ? 10 : 100, parallel=
         ]
     ];
 
-//    for(i=[0:1:ns]) {
-//        translate(f(i/ns)) origin(5, function (v) mat_apply(rots[i], v));
-//    }
-        
-    polyhedron(points, faces, 1);
+    if(false) for(f = faces) {
+        g = [for(p = f) points[p]];
+        m = avg(g);
+        color(randcolor()) union() for(p = g) hull() {
+            translate(p) sphere(1);
+            translate(m) sphere(1);
+        }
+    } else if(false) {
+        for(x = points) color(randcolor()) translate(x) sphere(1);
+    }
+    else polyhedron(points, faces, 1);
 }
 
 // a ruler l millimeters long, labeled in inches and centimeters
