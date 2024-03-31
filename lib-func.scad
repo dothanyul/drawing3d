@@ -61,6 +61,7 @@ function spline(x, d) = function(s)
     sum([for(j=[0:1:3]) a[j] * pow(t, j)]);
 
 // hilbert curve : t ϵ [0,1] -> [0,1] x [0,1]
+// from [0, 0] to [1, 0]
 function hilbert2(t) = 
     t < 0 ? hilbert2(-t) :
     t > 1 ? hilbert2(t - 1) :
@@ -73,6 +74,7 @@ function hilbert2(t) =
     [0.5, 0] + [0.5 - rest.y, 0.5 - rest.x];
 
 // hilbert curve : t ϵ [0,1] -> [0,1]^3
+// from [0, 0, 0] to [1, 0, 0]
 function hilbert3(t) =
     t < 0 ? hilbert3(-t) :
     t > 1 ? hilbert3(t - 1) :
@@ -88,7 +90,8 @@ function hilbert3(t) =
     t < 7/8 ? [0.5, 0.5, 0] + [0.5 - rest.z, rest.y, 0.5 - rest.x] :
     [0.5, 0, 0] + [0.5 - rest.y, 0.5 - rest.x, rest.z];
 
-// dragon curve : t ϵ [0,1] -> [0,1]^2
+// dragon curve : t ϵ [0,1] -> R2
+// goes from [0,0] to [1,0]
 function dragon(t) =
     t < 0 ? dragon(-t) :
     t > 1 ? dragon(t - 1) :
@@ -97,7 +100,8 @@ function dragon(t) =
     t < 1/2 ? let(rest = dragon(t * 2 % 1) / sqrt(2)) rot_k(rest, 45) :
     let(rest = dragon(1 - t * 2 % 1) / sqrt(2)) rot_k(rest, 135) + [1, 0];
 
-// levy C curve : t ϵ [0,1] -> [0,1]^2
+// levy C curve : t ϵ [0,1] -> R2
+// from [0,0] to [1,0]
 function levy(t) =
     t < 0 ? levy(-t) :
     t > 1 ? levy(t - 1) :
@@ -106,6 +110,34 @@ function levy(t) =
     let(rest = levy(t * 2 % 1) / sqrt(2))
     t < 1/2 ? rot_k(rest, 45) :
     rot_k(rest, -45) + [1/2, 1/2];
+
+// open koch curve : t ϵ [0,1] -> [0,1]^2
+// from [0,0] to [1,0]
+// 2w + 2w sin(a/2) = 1
+// w (2 + 2sin(a/2) = 1
+function koch(t, a=60) = 
+    t < 0 ? koch(-t) :
+    t > 1 ? koch(t - 1) :
+    t == 0 ? [0, 0] :
+    t == 1 ? [1, 0] :
+    // width of the first section
+    let(w = 1 / (2 + 2 * cos(a)))
+    // height and half-width of the middle triangle
+    let(h = w * sin(a), g = w * cos(a))
+    let(rest = koch(t * 4 % 1, a) * w)
+    t < 1/4 ? rest : 
+    t < 1/2 ? rot_k(rest, a) + [w, 0] :
+    t < 3/4 ? rot_k(rest, -a) + [w + g, h] :
+    rest + [1-w, 0];
+
+
+
+
+
+
+
+
+
 
 
 
