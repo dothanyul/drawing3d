@@ -6,6 +6,8 @@ id = function(x) x;
 
 // functions to deal with scalars
 
+function is_finite(x) = is_num(x) && x < 1/0 && x > -1/0;
+
 // mod that deals with negatives correctly
 function mod(a,b) = (a % b + b) % b;
 
@@ -15,8 +17,15 @@ function gcd(a,b) =
     b==0 ? a : 
     gcd(b, a%b);
 
-// truncate float a after p bits
-function truncate(a, p) = floor(a * pow(2, p)) / pow(2, p);
+// truncate float or vector a after p bits
+// for vectors, truncate each component
+function truncate(a, p) = 
+    is_list(a) ? [for(b = a) truncate(b, p)] :
+    a < 0 ? -truncate(-a, p) :
+    a == 0 ? 0 :
+    p <= 0 ? a :
+    let(b = pow(2, max(floor(log(a) / log(2)), 0) - p + 1))
+    floor(a / b) * b;
 
 // find the angle of an arc given length and radius
 function angle(arclength, radius) = arclength / (radius * 2 * PI) * 360;
@@ -69,12 +78,14 @@ function rot_j(a, t) = [a.z * sin(t) + a.x * cos(t), a.y, a.z * cos(t) - a.x * s
 function rot_i(a, t) = [a.x, a.y * cos(t) - a.z * sin(t), a.y * sin(t) + a.z * cos(t)];
 
 // distance between two vectors a,b ϵ Rd
-function distance(a,b) = sqrt(distsq(a, b));
+function distance(a,b) = 
+    is_num(a) && is_num(b) ? abs(a - b) :
+    norm(a - b);
 
 // distance squared between two vectors in Rd
 function distsq(a, b) =
     is_num(a) ? pow(a - b, 2) : 
-    len(a) == 0 ? 0 :
+    len(a) == 0 || len(b) == 0 ? 0 :
     pow(a[0] - b[0], 2) + distsq(cdr(a), cdr(b));
 
 // distance between polar points a,b ϵ R x [0,360)
@@ -241,12 +252,16 @@ function mat_inv(A) =
 
 // functions on functions
 
-// length of a parametric function f : [0:1] -> R2
+// length of a parametric function f : [0,1] -> Rn
 function length(f) = 
     sum([for(t=[0:1:$fn-1]) 
         let(t0 = t / $fn, t1 = (t + 1) / $fn)
         distance(f(t0), f(t1))
     ]);
+
+// average distance between two parametric functions f,g : [0,1] -> Rn
+function avg_dist(f, g) = 
+    avg([for(t = [0:1/$fn:1]) distance(f(t), g(t))]);
 
 // integral of f : R => R from a to b
 function integral(f, a, b) = 
@@ -264,7 +279,6 @@ function normal(f, d) = function(x)
     )
     !(norm(dt) > 0 && norm(ds) > 0) || unit(dt) == unit(ds) ? k3 :
     unit(cross(dt, ds));
-
 
 
 
