@@ -10,6 +10,11 @@ function reverse(vec) =
     len(vec) == 0 ? vec :
     [each reverse(cdr(vec)), vec[0]];
 
+function shuffle(l, acc=[]) = 
+    l == [] ? acc :
+    let(i = floor(rands(0, len(l), 1)[0]))
+    shuffle([for(j = [0:1:len(l)-1]) if(j != i) l[j]], [l[i], each acc]);
+
 // sum the elements of a list
 function sum(vec, acc=0) = 
     is_list(vec[0]) && acc == 0 ? sum(vec, [for(i = [1:1:len(vec[0])]) 0]) :
