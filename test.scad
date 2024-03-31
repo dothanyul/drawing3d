@@ -5,6 +5,19 @@ include <lib-draw.scad>
 include <lib-func.scad>
 
 
+
+module truncate_test() {
+    for(v = [
+        [64, 2, 64],
+        [65, 2, 64],
+        [63, 2, 48],
+        [-64, 2, -64],
+        [0.01, 2, 1/128]]) {
+        t = truncate(v[0], v[1]);
+        if(t != v[2]) echo(v[0], v[1], t);
+    }
+}
+
 module rot_test() {
     r = 30;
     for(t = [0:10:360]) color(rainbow(t / 360)) {
@@ -65,6 +78,9 @@ module follow_test() {
 }
 
 module sweep_test() {
+    d = 100;
+    m = 2 * PI;
+    n = 4;
     p = function(t) 
         t > 1 ? p(t-1) : 
         t < 0 ? p(t+1) :
@@ -74,8 +90,9 @@ module sweep_test() {
         t < 7/16 ? [(5/16 - t) * 8, 1/2] :
         [-1, 1/2 - (t - 7/16) * 8];
     f = function(s) 
-        [cos(360*s), s, sin(360*s)] * 100;
-    sweep(p, f);
+        [cos(360*s*n), m * s, sin(360*s*n)] * d;
+    sweep(function(t) p(t) * 10, f, nt = 16, ns = 200);
+    translate([d, m * d, 0.4]) origin(10);
 }
 
 module loft_test() {
@@ -86,19 +103,37 @@ module loft_test() {
         t < 0.75 ? segment([-1,-1], [1,-1])(t * 4 - 2) :
         segment([1,-1], [1,1])(t * 4 - 3)
     ) [x.x, x.y, 2];
-    d1 = zero(2);
-    d2 = zero(2);
+    d1 = f_0(2);
+    d2 = f_0(2);
     loft(p1, p2, d1, d2);
 }
 
 module stroke_test() {
-    x1 = raise(rands(-10, 10, 2), 3);
-    x2 = raise(rands(-10, 10, 2), 3);
+    x1 = raise(rands(-20, 20, 2), 3);
+    x2 = raise(rands(-20, 20, 2), 3);
     echo(x1, x2);
     for(x = [x1, x2]) translate(x) origin(3, align(i3, x2 - x1), $fn = 6);
-    s = stroke(x1, x2, 5);
+    s = stroke(x1, x2, 5, 2/3);
     n = 6;
     for(t = [0:1:n]) translate(s(t / n)) color(rainbow(t / n)) sphere(1);
+}
+
+module spline_test() {
+    x = [[-3, 5, -2], [5, -7, 10], [1, 4, 5]];
+    d = [[0, 0, 1], [1, 1, 0], [0, 0, 1]];
+    n = 20;
+    if(false) {
+        for(t = [0:1:n]) {
+            x1 = spline(x, d)(t/n);
+            for(i = [0:1:2]) {
+                c = ["#F00", "#0F0", "#00F"][i];
+                translate([t, x1[i], 0]) color(c) sphere(0.5);
+            }
+        }
+    } else {
+        for(i = [0:1:len(x)-1]) translate(x[i]) face(d[i]) origin(3);
+        for(t = [-2:1:n+2]) translate(spline(x, d)(t/n)) color(rainbow(t/n)) sphere(1);
+    }
 }
 
 module hilbert2_test() {
@@ -123,43 +158,6 @@ module hilbert3_test(s=50, c=256, d=1, r=1) {
 }
 
 // stuff and tests for stuff that's not stable enough yet to put in a regular lib file
-
-// convert rgb color to hsv
-function hsv(rgb) = 
-    is_string(rgb) ? color_str(hsv(color_list(rgb))) :
-    is_num(rgb) ? color_num(hsv(color_list(rgb))) :
-    let(v = sum(rgb),
-        hs = [0.5, sqrt(3) / 2] * rgb[0] + [-1, 0] * rgb[1] + [0.5, -sqrt(3) / 2] * rgb[2])
-    [mod(vec_ang(hs) / 360, 1), norm(hs), v / 3];
-
-module hsv_test() {
-    s = 100;
-    l = 24000;
-    origin(s / 10);
-    % frame([s, s, s], 4);
-    for(i = [0:1:999]) {
-        n = rands(0, 1, l, 0)[l * $t + i];
-        x = color_list(n);
-        c = rgb(x);
-        translate(x * s) color(color_str(c * 255)) rotate($vpr) cube(3, center=true);
-    }
-}
-
-// convert hsv color to rgb
-function rgb(hsv) = 
-    is_num(hsv) ? color_num(rgb(color_list(hsv))) :
-    is_string(hsv) ? color_str(rgb(color_list(hsv))) :
-    let(t = hsv[0] * 6)
-    let(hue = (function(t)
-        t < 1 ? [1, t, 0] :
-        t < 2 ? [2 - t, 1, 0] :
-        t < 3 ? [0, 1, t - 2] :
-        t < 4 ? [0, 4 - t, 1] :
-        t < 5 ? [t - 4, 0, 1] :
-        [1, 0, 6 - t])
-        (hsv[0] * 6))
-    let(huesat = hue / (1 - hsv[1]) + [for([0:1:2]) hsv[1]])
-    huesat * hsv[2];
 
 // points is an unordered list of points to form the centers
 // bl is bottom left, tr is top right of the rectangle to bound the pattern
