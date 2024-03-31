@@ -23,12 +23,13 @@ function arc(x1, x2, left = true) =
     [x1.x + (x2 - x1).x * sin(t * 90), x1.y + (x2 - x1).y * (1 - cos(t * 90))];
 
 // round capped stroke from x1 to x2 in <i3,j3> outline : [0,1] -> R3
-function stroke(x1, x2, thick) =
+// thick = thickness of the stroke, c = proportion of the domain containing the caps
+function stroke(x1, x2, thick, p=0.5) =
     let(l = norm(x2 - x1), // length
         d = unit(x2 - x1), // direction
         r = thick / 2) // radius
-    let(c = 0.5 * (PI * r) / (l + PI * r), // cap length in t
-        b = 0.5 * l / (l + PI * r)) // side length in t
+    let(c = p / 2, // single cap length in t
+        b = (1 - p) / 2) // single side length in t
     function(t)
         t < c / 2 ? let(h = t / c * 180) x1 + rot_k([cos(h), sin(h)], atan2(d.y, d.x) + 180) * r :
         t < 0.5 - c / 2 ? segment(x1, x2)((t - c / 2) / b) + rot_k(d, -90) * r :
@@ -36,38 +37,28 @@ function stroke(x1, x2, thick) =
         t < 1 - c / 2 ? segment(x2, x1)((t - 0.5 - c / 2) / b) + rot_k(d, 90) * r :
         let(h = (t - 1 + c / 2) / (c / 2) * 90) x1 + rot_k([cos(h), sin(h)], atan2(d.y, d.x) + 90) * r;
 
-/**
-Make two cubic splines, one in the x plane and one in the y plane, and project them together
-calculate a cubic function f : [0,1] -> R2 such that
-    f(x1.z) = [x1.x, x1.y]
-    f(x2.z) = [x2.x, x2.y]
-    df/dz(x1.z) = d1 in x and y
-    df/dz(x2.z) = d2 in x and y
-    f lies in the plane (r, z) => [(x2.x - x1.x)r + x1.x, (x2.y - x1.y)r + x1.y, z]
-*/
-function spline(x1, x2, d1, d2) =
-    let(z1 = x1.z, h = x2.z - x1.z)
-    let(a = function(t1,t2,d1,d2)
-            (d1 + d2) / pow(h,2)
-            - 2 * (t2 - t1) / pow(h,3),
-        b = function(t1,t2,d1,d2)
-            -(2 * d1 + d2) / h
-            + 3 * (t2 - t1 - z1 * (d1 + d2)) / pow(h,2)
-            + 6 * z1 * (t2 - t1) / pow(h,3),
-        c = function(t1,t2,d1,d2)
-            d1
-            + 2 * z1 * (2 * d1 + d2) / h
-            + 3 * z1 * (z1 * (d1 + d2) - 2 * (t2 - t1)) / pow(h,2)
-            - 6 * pow(z1,2) * (t2 - t1) / pow(h,3),
-        d = function(t1,t2,d1,d2)
-            t1 - d1 * z1
-            - pow(z1,2) * (2 * d1 + d2) / h
-            + pow(z1,2) * (3 * (t2 - t1) - z1 * (d1 + d2)) / pow(h,2)
-            + 2 * pow(z1,3) * (t2 - t1) / pow(h,3))
-    function (z)
-        let(rx = a(x1.x, x2.x, d1.x, d2.x) * pow(z,3) + b(x1.x, x2.x, d1.x, d2.x) * pow(z,2) + c(x1.x, x2.x, d1.x, d2.x) * z + d(x1.x, x2.x, d1.x, d2.x),
-            ry = a(x1.y, x2.y, d1.y, d2.y) * pow(z,3) + b(x1.y, x2.y, d1.y, d2.y) * pow(z,2) + c(x1.y, x2.y, d1.y, d2.y) * z + d(x1.y, x2.y, d1.y, d2.y))
-        [rx, ry, z];
+// 3D spline through a list x of points and tangent to a parallel list d of vectors
+// that is, for n = len(x) - 1, for all i ϵ [0:1:n], f(i/n) = x[i] and df/dt(i/n) || d[i]
+function spline(x, d) = function(s)
+    // break [0,1] into len(x)-1 many pieces
+    // i is which piece, t is how far into the piece
+    let(t = s < 0 ? s : 
+            s > 1 ? (s * (len(x) - 1)) - (len(x) - 2) : 
+            (s * (len(x) - 1) % 1),
+        i = s < 0 ? 0 : 
+            s > 1 ? len(x) - 2 : 
+            floor(s * (len(x) - 1)))
+    t == 0 ? x[i] :
+    // consider only the two relevant endpoints
+    let(x1 = x[i], x2 = x[i+1])
+    let(c = [d[i], d[i+1]] * norm(x2 - x1))
+    let(d1 = c[0], d2 = c[1])
+    let(a = [ // constant, linear, square, cube coefficients
+        x1,
+        d1,
+        3 * (x2 - x1) - 2 * d1 - d2,
+        2 * (x1 - x2) + d2 + d1])
+    sum([for(j=[0:1:3]) a[j] * pow(t, j)]);
 
 // hilbert curve : t ϵ [0,1] -> [0,1] x [0,1]
 function hilbert2(t) = 
