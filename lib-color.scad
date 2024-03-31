@@ -43,7 +43,7 @@ function color_list(c) =
         sum([for(j=[1:1:d]) denybble(c[i * d + j]) * pow(16, d - j)]) / pow(16, d)];
 
 // convert color list or decimal number to color string
-function color_str(c) = 
+function color_str(c) =
     is_list(c) ? let(cn = c * 255) str("#", byte(cn[0]), byte(cn[1]), byte(cn[2])) :
     color_str([c * 16 % 16 * 16 + c * pow(16, 4) % 16, c * pow(16, 2) % 16 * 16 + c * pow(16, 5) % 16, c * pow(16, 3) % 16 * 16 + c * pow(16, 6) % 16]);
 
@@ -69,8 +69,10 @@ function pulse(c1, c2, power=1) = function(t)
     color_sum([c1, c2], [y, 1 - y]);
 
 // random color string with each channel between the given bounds
-function randcolor(lo=64, hi=255) =
-    color_str(rands(max(lo, 0), min(hi, 255), 3));
+function randcolor(seed=undef) =
+    shuffle([rands(128, 255, 1)[0], rands(0, 127, 1)[0], 
+        rands(0, 2, 1)[0] > 1 ? rands(128, 255, 1)[0] : rands(0, 127, 1)[0]]
+    ) / 255;
 
 // average two color strings
 function color_add(c1, c2) = 
@@ -88,7 +90,29 @@ function color_sum(c, w=[]) =
 function color_scale(c, a) = 
     color_switch(color_switch(c) * a);
 
+// convert hsv color to rgb
+function rgb(hsv) = 
+    is_num(hsv) ? color_num(rgb(color_list(hsv))) :
+    is_string(hsv) ? color_str(rgb(color_list(hsv))) :
+    [for(i=[0:1:2])
+        let(r = function(h)
+            h < 0 || h > 1 ? r(mod(h, 1)) :
+            h < 1/6 || h > 5/6 ? 1 :
+            h > 1/3 && h < 2/3 ? 0 :
+            h < 1/3 ? (1/3 - h) * 6 :
+            (h - 2/3) * 6)
+        let(b = hsv[2] * (1 - r(hsv[0] - i/3 - 1/2) * hsv[1]))
+        truncate(b, 8)];
 
+// convert rgb color to hsv
+function hsv(rgb) = 
+    is_string(rgb) ? color_str(hsv(color_list(rgb))) :
+    is_num(rgb) ? color_num(hsv(color_list(rgb))) :
+    let(v = max(rgb),
+        s = max(rgb) - min(rgb),
+        hd = rgb - avg(rgb) * [1, 1, 1])
+    let(h = rot_k(mat_apply(align([1, 1, 1], k3), hd), 15))
+    [mod(atan2(h.y, h.x) / 360, 1), s, v];
 
 
 
