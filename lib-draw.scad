@@ -28,16 +28,15 @@ module origin(size=1, f=id, ball=false) {
         }
         % sphere(size, $fn = 20);
     } else {
-        // sorted by z decasing then y decreasing then x decreasing
-        // so 0 = [1, 1, 1], then going down in z is an increase by 9, y an increase by 3, and x an increase by 1
-        points = [let(d = 0.25) for(k = [k3, vec_0(3), -k3 * d]) for(j = [j3, vec_0(3), -j3 * d]) for(i = [i3, vec_0(3), -i3 * d]) f1(i + j + k)];
-        // faces of tetrahedra along each axis
-        for(p = [[13, 16, 22, 12, i3], [13, 22, 14, 10, j3], [13, 14, 16, 4, k3]]) {
-            faces = [for(f = [[0, 1, 2], [0, 2, 3], [0, 3, 1], [1, 3, 2]]) [for(i = f) p[i]]];
-            color(color_str(p[4])) polyhedron(points, faces, 1);
+        for(b = [[i3, -j3, -k3], [j3, -k3, -i3], [k3, -i3, -j3]]) {
+            p = [for(x = [b[0], b[1]/4, b[2]/4, v0(3)]) 
+                f1(x)];
+            r = [[0, 1, 3], [0, 2, 1], [0, 3, 2], [1, 2, 3]];
+            color(color_str(b[0])) polyhedron(p, r, 1);
         }
     }
 }
+
 /*
 Draw square edges of thickness r around a cube with dimensions [width, depth, height]
 */
