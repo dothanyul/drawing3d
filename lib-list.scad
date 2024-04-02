@@ -10,6 +10,12 @@ function reverse(vec) =
     len(vec) == 0 ? vec :
     [each reverse(cdr(vec)), vec[0]];
 
+// flatten a compound list
+function flatten(l, acc=[]) =
+    l == [] ? acc :
+    is_list(l) ? flatten(cdr(l), [each acc, each flatten(l[0])]) :
+    l;
+
 function shuffle(l, acc=[]) = 
     l == [] ? acc :
     let(i = floor(rands(0, len(l), 1)[0]))
@@ -65,13 +71,13 @@ function sort(list, comp, acc=[]) = (
 );
 
 // tell whether a list contains all elements of another list
-function contains(L, elts) = (
+function contains(L, elts) = 
     len(elts) == 0 ? true :
     len(L) == 0 ? false :
     len(elts) == 1 ? 
-        L[0] == elts[0] ? true : contains(cdr(L), elts)
-    : contains(L, [elts[0]]) && contains(L, cdr(elts))
-);
+        L[0] == elts[0] ? true : 
+        contains(cdr(L), elts) : 
+    contains(L, [elts[0]]) && contains(L, cdr(elts));
 
 // join two lists, taking only one copy of any duplicates
 function merge(L1, L2, acc=[]) = 
@@ -87,4 +93,19 @@ function index(L, x, acc=[0], margin=0) = (
     distance(L[0], x) <= margin ? index(cdr(L), x, concat(acc[0]+1, acc)) : // save the current index
     index(cdr(L), x, concat(acc[0]+1, cdr(acc))) // increase the counter
 );
+
+// create the anamorphism of f of length n starting at x
+// that is, return [x, f(x), f(f(x)), ...]
+function anamorph(f, x, n, acc=[]) = 
+    n == 0 ? acc :
+    anamorph(f, f(x), n-1, [each acc, x]);
+
+
+
+
+
+
+
+
+
 
