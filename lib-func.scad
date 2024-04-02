@@ -2,7 +2,7 @@
 include <lib-math.scad>
 
 // zero function in Rn
-function f_0(n) = 
+function f0(n) = 
     n < 1 ? undef :
     n == 1 ? function(t) 0 :
     function(t) vec_0(n);

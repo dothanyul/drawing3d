@@ -51,7 +51,7 @@ j3 = [0, 1, 0];
 k3 = [0, 0, 1];
 
 // zero vector in Rn
-function vec_0(n) = [for(i=[0:1:n-1]) 0];
+function v0(n) = [for(i=[0:1:n-1]) 0];
 
 // increase dimension of a vector by adding zeroes
 function raise(v, n) = [for(i=[0:1:n-1]) is_undef(v[i]) ? 0 : v[i]];
