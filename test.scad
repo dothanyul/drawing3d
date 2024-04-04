@@ -1,10 +1,29 @@
 // tests for lib files
 // animate tests 24 fps 90 steps
 
+include <lib-color.scad>
 include <lib-draw.scad>
 include <lib-func.scad>
 include <lib-view.scad>
 
+
+// tests for lib-color
+
+module rainbow_test() {
+    n = 720;
+    h = 2;
+    r = 30;
+    p = [[0, 0, 0], [0, 0, h], 
+        each [for(t = [0:360/n:360]) each [
+            [r * cos(t), r * sin(t), 0], 
+            [r * cos(t), r * sin(t), h]]]];
+    for(t=[2:2:2*n]) color(rainbow(t/n)) polyhedron(
+        [for(i=[0, 1, each [for(j=[0:1:3]) t + j]]) p[i]],
+        [[0, 1, 3, 2], [0, 2, 4], [1, 0, 4, 5], [1, 5, 3], [2, 3, 5, 4]],
+        1);
+}
+
+// tests for lib-math
 
 module truncate_test() {
     for(v = [
@@ -53,6 +72,9 @@ module align_test(base=false) {
         }
     }
 }
+
+
+// tests for lib-draw
 
 module follow_test() {
     n = 80;
@@ -108,6 +130,9 @@ module loft_test() {
     loft(p1, p2, d1, d2);
 }
 
+
+// tests for lib-func
+
 module stroke_test() {
     x1 = raise(rands(-20, 20, 2), 3);
     x2 = raise(rands(-20, 20, 2), 3);
@@ -156,6 +181,9 @@ module hilbert3_test(s=50, c=256, d=1, r=1) {
     sweep_nondifferentiable(function(t) hilbert3(t) * s, r, $fn=c);
     % frame([s, s, s], s / 12);
 }
+
+
+// tests for lib-view
 
 module visible_test() {
     s = 20;

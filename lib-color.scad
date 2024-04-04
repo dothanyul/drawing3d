@@ -56,12 +56,12 @@ function color_num(c) =
 // at point x1 channel is c1, at point x1+1 channel is c2, so equation for channel is c = 255 * cv * (x - x1) + c1
 function rainbow(n) = 
     let(x = mod(n, 1) * 6)
-    x < 1 ? color_str([1, 0.5 * x, -0.1 * x + 0.1]) :
-    x < 2 ? color_str([1, 0.5 * (x - 1) + 0.5, 0]) :
-    x < 3 ? color_str([-1 * (x - 2) + 1, -0.3 * (x - 2) + 1, 0.1 * (x - 2)]) :
-    x < 4 ? color_str([0.2 * (x - 3), -0.5 * (x - 3) + 0.7, 0.9 * (x - 3) + 0.1]) :
-    x < 5 ? color_str([0.3 * (x - 4) + 0.2, -0.2 * (x - 4) + 0.2, -0.4 * (x - 4) + 1]) :
-    color_str([0.5 * (x - 5) + 0.5, 0, -0.5 * (x - 5) + 0.6]);
+    x < 1 ? color_str([1, 0, 0.1] + [0, 0.5, -0.1] * x) :
+    x < 2 ? color_str([1, 0.5, 0] + [0, 0.5, 0] * (x - 1)) :
+    x < 3 ? color_str([1, 1, 0] + [-1, -0.3, 0.1] * (x - 2)) :
+    x < 4 ? color_str([0, 0.7, 0.1] + [0.2, -0.5, 0.9] * (x - 3)) :
+    x < 5 ? color_str([0.2, 0.2, 1] + [0.3, -0.2, -0.4] * (x - 4)) :
+    color_str([0.5, 0, 0.6] + [0.5, 0, -0.5] * (x - 5));
 
 // oscillating color pattern that displays c1 on every integer and fades down to c2 in between over a polynomial curve with degree power
 function pulse(c1, c2, power=1) = function(t)

@@ -15,7 +15,7 @@ lib-math holds the identity function and the standard basis vectors, as well as 
 
 lib-view holds visible, as well as its helper vp and vp's inverse world.
 
-Currently working tests in test: truncate, rot, align, follow, sweep, loft, stroke, spline, hilbert2, hilbert3, visible, world
+Currently working tests in test: rainbow, truncate, rot, align, follow, sweep, loft, stroke, spline, hilbert2, hilbert3, visible, world
 
 Tests are currently as-needed; since running a test involves visual inspection tests are tailored to the edits that require them
 
