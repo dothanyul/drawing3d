@@ -1,9 +1,9 @@
-// tests for lib-draw and lib-func
+// tests for lib files
 // animate tests 24 fps 90 steps
 
 include <lib-draw.scad>
 include <lib-func.scad>
-
+include <lib-view.scad>
 
 
 module truncate_test() {
@@ -155,6 +155,23 @@ module hilbert2_test() {
 module hilbert3_test(s=50, c=256, d=1, r=1) {
     sweep_nondifferentiable(function(t) hilbert3(t) * s, r, $fn=c);
     % frame([s, s, s], s / 12);
+}
+
+module visible_test() {
+    s = 20;
+    d = 4;
+    for(x = [-s:d:s]) for(y = [-s:d:s]) for(z = [-s:d:s]) {
+        v = [x, y, z];
+        if(!visible(v)) translate(v) sphere(1);
+    }
+}
+
+module world_test() {
+    origin(10);
+    for(v = [[-1, 1, 0], [1, 1, 0], [-1, -1, 0], [1, -1, 0]]) {
+        w = world(v);
+        translate(w) rotate($vpr) sphere($vpd / 100, $fn = 5);
+    }
 }
 
 // stuff and tests for stuff that's not stable enough yet to put in a regular lib file
