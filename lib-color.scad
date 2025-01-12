@@ -1,4 +1,5 @@
 include <lib-math.scad>
+include <lib-func.scad>
 
 // functions related to color and rainbow
 
@@ -52,16 +53,31 @@ function color_num(c) =
     is_list(c) ? color_num(color_str(c)) :
     fromhex(str(c[0], c[3], c[1], c[4], c[2], c[5])) / pow(256, 3);
 
+// given a list of color lists, create a spline path through those colors
+function color_spline(colors) = function(t)
+    let(d = [for(i=[0:1:len(colors)-1]) 
+                let(i0 = mod(i-1, len(colors)), i2 = mod(i+1, len(colors)))
+                colors[i2] - colors[i0]])
+    color_str(spline(colors, d, loop=true)(t));
+
+// given a list of color lists, create a piecewise linear path through those colors
+function color_path(colors) = function(t)
+    color_str(path(colors, loop = true)(t));
+
 // rainbow of period 1 at point n
 // at point x1 channel is c1, at point x1+1 channel is c2, so equation for channel is c = 255 * cv * (x - x1) + c1
-function rainbow(n) = 
-    let(x = mod(n, 1) * 6)
-    x < 1 ? color_str([1, 0, 0.1] + [0, 0.5, -0.1] * x) :
-    x < 2 ? color_str([1, 0.5, 0] + [0, 0.5, 0] * (x - 1)) :
-    x < 3 ? color_str([1, 1, 0] + [-1, -0.3, 0.1] * (x - 2)) :
-    x < 4 ? color_str([0, 0.7, 0.1] + [0.2, -0.5, 0.9] * (x - 3)) :
-    x < 5 ? color_str([0.2, 0.2, 1] + [0.3, -0.2, -0.4] * (x - 4)) :
-    color_str([0.5, 0, 0.6] + [0.5, 0, -0.5] * (x - 5));
+function rainbow(t) = color_path([
+    [1, 0, 0], 
+    [1, 0.5, 0], 
+    [1, 1, 0], 
+    [0, 0.7, 0.1], 
+    [0.2, 0.2, 1], 
+    [0.5, 0, 0.5]]
+    )(t);
+
+function gray(k) = 
+    let(g = k < 0 ? 0 : k > 1 ? 1 : k)
+    color_str([for(i=[0:1:2]) g]);
 
 // oscillating color pattern that displays c1 on every integer and fades down to c2 in between over a polynomial curve with degree power
 function pulse(c1, c2, power=1) = function(t)
@@ -69,10 +85,14 @@ function pulse(c1, c2, power=1) = function(t)
     color_sum([c1, c2], [y, 1 - y]);
 
 // random color string with each channel between the given bounds
-function randcolor(seed=undef) =
-    shuffle([rands(128, 255, 1)[0], rands(0, 127, 1)[0], 
-        rands(0, 2, 1)[0] > 1 ? rands(128, 255, 1)[0] : rands(0, 127, 1)[0]]
-    ) / 255;
+function randcolor(s=undef) =
+    let(seed = is_undef(s) ? rands(0, 100, 1)[0] :
+        is_num(s) ? s :
+        is_list(s) ? let(p = primes(pow(3, len(s))))
+            sum([for(i=[0:1:len(s)-1]) s[i] * p[i * 2]]) :
+        s)
+    let(v = rands(0, 127, 6, seed))
+    color_str(shuffle(shuffle([v[0] + 128, v[1], v[2] + (v[3] >= 64 ? 128 : 0)], v[4]), v[5]) / 255);
 
 // average two color strings
 function color_add(c1, c2) = 
@@ -80,15 +100,15 @@ function color_add(c1, c2) =
 
 // average n color strings with optional weights
 function color_sum(c, w=[]) =
+    w == [] ? let(cl = [for(b=c) color_list(b)])
+        color_str(sum(cl) / len(c)) :
     let(cl = [for(i=[0:1:len(c)-1]) 
-        let(ci = color_list(c[i]), 
-            wi = w == [] ? 1 / len(c) : w[i] / sum(w))
-        ci * wi])
-    color_str(sum(cl));
+        color_list(c[i]) * w[i]])
+    color_str(sum(cl) / sum(w));
 
 // scale a color uniformly in brightness by a ϵ [0,1]
-function color_scale(c, a) = 
-    color_switch(color_switch(c) * a);
+function color_scale(c, a) =
+    color_str(color_list(c) * a);
 
 // convert hsv color to rgb
 function rgb(hsv) = 
@@ -114,11 +134,37 @@ function hsv(rgb) =
     let(h = rot_k(mat_apply(align([1, 1, 1], k3), hd), 15))
     [mod(atan2(h.y, h.x) / 360, 1), s, v];
 
-
-
-
-
-
+// color by numbers
+function synth(n, i=0) = 
+    n % 1 > 0 ? rainbow(n) :
+    n < 0 ? color_scale(synth(-n), 0.5) :
+    n == 0 ? gray(0.2) :
+    n == 1 ? i == 1 ? gray(0.4) : gray(1) :
+    n == 2 ? i == 1 ? color_str([0.95, 0.98, 0.87])  :
+        color_str([0.27, 0.47, 1]) :
+    n == 3 ? i == 1 ? color_str([0.78, 0.33, 0.13]) :
+        color_str([1, 0.54, 0.21]) :
+    n == 4 ? i == 1 ? color_str([0.60, 0.64, 0.81]) :
+        color_str([0.60, 0.33, 0.8]) :
+    n == 5 ? i == 1 ? color_str([1.00, 0.60, 0.16]) :
+        i == 2 ? color_str([1, 0.56, 0.77]) :
+        color_str([0.97, 0.97, 0.27]) :
+    n == 6 ? i == 1 ? color_str([0.17, 0.39, 0.83]) :
+            i == 2 ? color_str([1, 1, 1]) :
+        color_str([0.2, 0.75, 0.3]) :
+    n == 7 ? i == 1 ? color_str([0.3, 0.6, 0.2]) :
+            i == 2 ? color_str([0.9, 0.6, 0.1]) :
+        color_str([0.44, 0.25, 0.06]) :
+    n == 8 ? i == 1 ? color_str([0.86, 0.59, 0.27]) :
+        color_str([0.86, 0.86, 0.92]) :
+    n == 9 ? i == 1 ? color_str([0.9, 0.9, 0.94]) :
+            i == 2 ? color_str([0.21, 0.24, 0.35]) :
+        color_str([0.17, 0.74, 0.25]) :
+    n == 10 ? i == 1 ? gray(0.2) :
+            i == 2 ? color_str([0.97, 0.98, 0.49]) :
+            i == 3 ? color_str([0.30, 0.44, 0.8]) :
+        color_str([0.87, 0.87, 0.94]) :
+    rainbow(n * 2 / (1 + sqrt(5)));
 
 
 

@@ -10,16 +10,24 @@ function reverse(vec) =
     len(vec) == 0 ? vec :
     [each reverse(cdr(vec)), vec[0]];
 
+// tell if all elements of a list are distinct
+function distinct(l) = 
+    l == [] ? true : 
+    contains(cdr(l), [l[0]]) ? false :
+    distinct(cdr(l));
+
 // flatten a compound list
-function flatten(l, acc=[]) =
+// pass end=1 to stop at a list of lats
+function flatten(l, end=0, acc=[]) =
     l == [] ? acc :
+    end == 1 && is_list(l) && land([for(x=l) !is_list(x)]) ? l :
     is_list(l) ? flatten(cdr(l), [each acc, each flatten(l[0])]) :
     l;
 
-function shuffle(l, acc=[]) = 
+function shuffle(l, seed=undef, acc=[]) = 
     l == [] ? acc :
-    let(i = floor(rands(0, len(l), 1)[0]))
-    shuffle([for(j = [0:1:len(l)-1]) if(j != i) l[j]], [l[i], each acc]);
+    let(i = floor(rands(0, len(l), 1, seed)[0]))
+    shuffle(splice(l, i), seed, [l[i], each acc]);
 
 // sum the elements of a list
 function sum(vec, acc=0) = 
@@ -27,35 +35,39 @@ function sum(vec, acc=0) =
     vec == [] ? acc :
     sum(cdr(vec), acc + vec[0]);
 
-// mean of a list
-function avg(vec) = sum(vec) / len(vec);
-
 // and of a list of booleans
-function and(vec) = 
-    vec == [] ? true : 
-    !is_bool(vec[0]) ? false :
-    vec[0] ? and(cdr(vec)) : 
+function land(x) = 
+    x == [] ? true : 
+    !is_bool(x[0]) ? false :
+    x[0] ? land(cdr(x)) : 
     false;
 
 // or of a list of booleans
-function or(vec) = 
+function lor(vec) = 
     vec == [] ? false :
     !is_bool(vec[0]) ? false :
     vec[0] ? true :
-    or(cdr(vec));
+    lor(cdr(vec));
 
-// remove all of an item from a list by value
-function remove(list, bad) = (
+// mean of a list
+function avg(vec) = sum(vec) / len(vec);
+
+// remove a range of items from a list by index
+function splice(list, i, n=1, acc=[]) = 
+    [for(j=[0:1:len(list)-1]) if(j < i || j >= i+n) list[j]];
+
+// remove all or one of an item from a list by value
+function remove(list, bad, all=true) = 
     list == [] ? list :
-    list[0] == bad ? remove(cdr(list), bad) :
-    [list[0], each remove(cdr(list), bad)]
-);
+    list[0] == bad ? 
+        all ? remove(cdr(list), bad) : cdr(list) :
+    [list[0], each remove(cdr(list), bad)];
 
 // return all items in list for which f returns true
 function filter(list, f) = (
     list == [] ? list :
-    !f(list[0]) ? filter(cdr(list)) :
-    [list[0], each filter(cdr(list), bad)]
+    !f(list[0]) ? filter(cdr(list), f) :
+    [list[0], each filter(cdr(list), f)]
 );
 
 // find the highest something in a list using the provided comparator
@@ -67,7 +79,8 @@ function select(list, comp, highest) = (
 // selection sort a list using a comparator (which should return a number for how the first arg sorts to the second)
 function sort(list, comp, acc=[]) = (
     list == [] ? acc :
-    sort(remove(list, select(list, comp, undef)), comp, [select(list, comp, undef), each acc])
+    let(highest = select(list, comp, list[0]))
+    sort(remove(list, highest, all=false), comp, [highest, each acc])
 );
 
 // tell whether a list contains all elements of another list

@@ -10,17 +10,19 @@ function world(x) =
     t;
 
 // convert from world coordinates to viewport coordinates (inverse of world)
-function vp(x) = 
+// w is a corrective factor for the width vs the height
+function vp(x, w=1.2) = 
     let(t = x - $vpt)
     let(s = t / ($vpd * tan($vpf / 2)))
-    let(r = rot_i(rot_j(rot_k(s, -$vpr[2]), -$vpr[1]), -$vpr[0]))
-    r;
+    let(z = rot_k(s, -$vpr[2]), zy = rot_j(z, -$vpr[1]), r = rot_i(zy, -$vpr[0]))
+    [r.x/w, r.y, r.z];
 
 // tell whether a vector is within the viewport (assuming it's square - I don't know how to get the viewport aspect ratio)
-function visible(x) = let(v = vp(x))
-    v[0] < 1 && v[0] > -1 && v[1] < 1 && v[1] > -1;
+function visible(x, w=1.2) = let(v = vp(x, w))
+    land([each [for(b=[v.x, v.y]) for(s = [1, -1]) b * s < 1], v.z < 2]);
 
-
-
-
+// put a background of color c covering width w at distance d back from 0
+module background(c="#000", w=1, d=1) {
+    face($vpr) translate([0, 0, -d-1] + $vpt) color(c) cube([w, w, 1], center=true);
+}
 
