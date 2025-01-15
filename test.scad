@@ -4,6 +4,7 @@
 include <lib-color.scad>
 include <lib-draw.scad>
 include <lib-func.scad>
+include <lib-gear.scad>
 include <lib-tree.scad>
 include <lib-view.scad>
 
@@ -265,11 +266,11 @@ module loft_test() {
 
 // tests for lib-gear
 {
+module axle() cylinder(thick * 2, 2, 2, center = true, $fn = 8);
 
 // a little demo that uses all the kinds of gears
 module gears_test() {
     all = true;
-    module axle() cylinder(thick * 2, 1.5, 1.5, center = true, $fn = 8);
     if(false || all) ring(16, right = true);
     if(false || all) translate([radius(8), 0, 0]) rotate([0, 0, 360 / 16]) 
     difference() {
@@ -294,8 +295,8 @@ module gears_test() {
         axle();
     }
     if(false || all) translate([-wide, -T / 2, dz + radius(4)]) rotate([-90, 0, 90]) 
-        rack(10, dr = d * 3 - 0.5);
-    if(false || all) difference() {
+        rack(10, dr = d * 3 - 0.75);
+    if(true || all) difference() {
         union() {
             translate([-wide - thick, -wide, -4.3]) cube([wide * 2 + thick, wide * 2, 4]);
             translate([-wide, -10, -31]) cube([8.7, 20, 30]);
@@ -307,11 +308,106 @@ module gears_test() {
                     rotate([0, 0, -45]) translate([-diag, -5, 0])
                         cube([diag * 2, 10, 5]);
                 }
-                cylinder(15, radius(16) + d * 2.2, radius(16) + d * 2.1, $fn = 100);
+                cylinder(15, radius(16) + d * 2.5, radius(16) + d * 2.1, $fn = 100);
             }
         }
         translate([radius(8) - radius(12) - 10, 0, dz - radius(8)]) rotate([0, 90, 0]) axle();
         translate([radius(8), 0, 0]) axle();
+    }
+}
+
+module planetary_test() {
+    s = 8;
+    p = 4;
+    np = 1;
+    r = s + p * 2;
+    
+    if(false) rotate([0, 0, $t * 360]) {
+        color("#FD2") 
+            rotate([0, 0, $t*2 * 360]) 
+                spur(s, right = true);
+        color("#F48") 
+            for(i = [0:1:np]) rotate([0, 0, i * 360 / np]) 
+            translate([radius(s) + radius(p), 0, 0]) 
+            rotate([0, 0, 360 * ($t*2 * -s / p + (p % 2 == 0 ? 1/p/2 : 0))]) 
+                spur(p, right = false);
+        color("#4BF") 
+            rotate([0, 0, $t*2 * 360 * (-s) / r]) 
+                ring(r, right = true);
+    } else intersection() {
+        rotate([0, 0, $t*2 * 360]) 
+            spur(s, right = true);
+        translate([radius(s) + radius(p), 0, 0]) 
+        rotate([0, 0, 360 * ($t*2 * -s / p + (p % 2 == 0 ? 1/p/2 : 0))]) 
+            spur(p, right = false);
+        rotate([0, 0, $t*2 * 360 * (-s) / r]) 
+            ring(r, right = true);
+    }
+    if(true) {
+        rotate([0, 0, $t*2 * 360]) 
+            % spur(s, right = true);
+        translate([radius(s) + radius(p), 0, 0]) 
+        rotate([0, 0, 360 * ($t*2 * -s / p + (p % 2 == 0 ? 1/p/2 : 0))]) 
+            % spur(p, right = false);
+        rotate([0, 0, $t*2 * 360 * (-s) / r]) 
+            % ring(r, right = true);
+    }
+}
+
+module bevel_test() {
+    // tooth counts
+    k = 2;
+    n = [15, 20, 7, 24] * k;
+    // radii
+    r = [for(j = n) radius(j)];
+    // colors
+    c = ["#840", "#5C5", "#82B", "#880"];
+    // distance to all their intersection points
+    d0 = radius(25 * k);
+    // angles between
+    a = [0, for(i=[0:1:len(n)-2]) asin(r[i] / d0) + asin(r[i+1] / d0)];
+    // distance to 0
+    d = [for(i = [0:1:len(n)-1]) sqrt(pow(d0, 2) - pow(r[i], 2))]; 
+    // turn speeds
+    u = [for(j = n) foldl(n, function(a, b) a*b/k, 1) / j] * $t * 360;
+    // turn offsets
+    ph = [0, 1, 0, 1];
+    // show that gear or not
+    do = [for(i = [0:1:len(n)-1]) true];
+
+//        intersection() 
+    {
+        for(i = [0:1:len(n)-1]) if(do[i]) {
+            right = i % 2 == 0;
+            rotate(sum([for(j=[0:1:i]) a[j]]))
+            translate([d[i], 0, 0]) 
+            rotate([90, (right ? -1 : 1) * u[i] + ph[i] * 360/n[i]/2, -90]) 
+            color(c[i]) 
+            difference() {
+                bevel(n[i], d[i] / radius(1), right = right, $fn = 2);
+                axle();
+            }
+        }
+    }
+    if(true) difference() {
+        ri = d0 + 7;
+        ro = ri + 6;
+        cylinder(10, ro, ro, center = true, $fn = 80);
+        cylinder(20, ri, ri, center = true, $fn = 80);
+        for(i = [0: 1: len(n)-1]) 
+            rotate(sum([for(j=[0:1:i]) a[j]]))
+            translate([ro + (ro - ri) - 1, 0, 0]) 
+            rotate([0, -90, 0]) axle();
+    }
+    if(true) difference() {
+        cylinder(10, thick*2, thick*2, center = true);
+        for(i = [0: 1: len(n)-1]) 
+            rotate(sum([for(j=[0:1:i]) a[j]]))
+            translate([thick-1, 0, 0])
+            rotate([0, 90, 0]) {
+                axle();
+                cylinder(thick*2, thick*2, thick*2);
+            }
     }
 }
 

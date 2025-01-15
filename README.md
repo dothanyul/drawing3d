@@ -21,7 +21,7 @@ Currently working tests in test:
 - lib-color: color_spline, rainbow, randcolor, color_sum, synth
 - lib-math: truncate, logrest, base, rot, align
 - lib-draw: sector, follow, sweep, loft
-- lib-gear: gears
+- lib-gear: gears, planetary, bevel
 - lib-func: stroke, path, spline, hilbert2, hilbert3, dragon, hedra
 - lib-view: visible, world
 

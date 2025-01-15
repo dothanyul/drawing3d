@@ -11,13 +11,13 @@ the conical gear additionally requires a complement size which is the tooth size
 // total period of tooth profile in mm
 T = 7;
 // proportion of the total period taken up by the tooth itself
-t1 = 0.47;
+t1 = 0.4;
 // number of teeth to rotate through
 w = 1.3;
 // half the tooth depth in mm (depth to the action line)
 d = 1.5;
 // angle of the tooth sides
-a = 20;
+a = 30;
 // thickness of the gears in mm
 thick = 12;
 
@@ -114,19 +114,13 @@ module ring(n, h = thick, dr = d * 2, w = w, d = d, a = a, right = true, $fn = 4
 // right is the handedness of the sun and the ring
 module planetary(s = 8, p = 4, np = 4, h = thick, w = w, d = d, a = a, right = true, $fn = 4) {
     r = s + p * 2;
-//    rotate([0, 0, -$t * 360]) {
-//        color("#FD2") 
-//        rotate([0, 0, $t * 360]) 
-            spur(s, h = h, w = w, d = d, a = a, right = right);
-//        color("#F48") 
-            for(i = [0:1:np]) rotate([0, 0, i * 360 / np]) 
-            translate([radius(s) + radius(p), 0, 0]) 
-            rotate([0, 0, 360 * ($t * -s / p + (p % 2 == 0 ? 1/p/2 : 0))]) 
-                spur(p, h = h, w = w, d = d, a = a, right = !right);
-//        color("#4BF") 
-            rotate([0, 0, $t * 360 * (-s) / r]) 
-                ring(r, h = h, w = w, d = d, a = a, right = right);
-//    }
+    spur(s, h = h, w = w, d = d, a = a, right = right);
+    for(i = [0:1:np]) rotate([0, 0, i * 360 / np]) 
+    translate([radius(s) + radius(p), 0, 0]) 
+    rotate([0, 0, 360 * ($t * -s / p + (p % 2 == 0 ? 1/p/2 : 0))]) 
+        spur(p, h = h, w = w, d = d, a = a, right = !right);
+    rotate([0, 0, $t * 360 * (-s) / r]) 
+        ring(r, h = h, w = w, d = d, a = a, right = right);
 }
 
 // bevel gear with n teeth that mates perpendicularly with one with m teeth
@@ -197,4 +191,3 @@ module bevel(n, n2, h = thick, k = thick / 3, w = w, d = d, a = 30, right = true
         cone();
     }
 }
-
